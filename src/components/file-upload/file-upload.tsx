@@ -1,9 +1,11 @@
 import axios from 'axios';
-import {useState} from 'react';
+import React, {useEffect, useRef, useState} from 'react';
 import {Button} from '../ui/button';
 import {ImagePlus, Plus, X} from 'lucide-react';
 import Previews from './previews';
 import FileUploadActions from './file-upload-actions';
+import {cn} from '@/lib/utils';
+import {useFileUploadContext} from './file-upload-contex';
 
 export interface FileAndPreview {
   file: File;
@@ -11,66 +13,31 @@ export interface FileAndPreview {
 }
 
 const FileUpload = () => {
-  const [progress, setProgress] = useState(0);
-  const [files, setFiles] = useState<FileAndPreview[]>([]);
-
-  const baseApi = import.meta.env.VITE_API_URL;
-  const formData = new FormData();
-
-  const handleUploadFetch = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files && e.target.files[0];
-    const formData = new FormData();
-    if (!file) return;
-
-    formData.append('files', file);
-    try {
-      const res = await fetch(`${baseApi}/api/upload-image`, {
-        method: 'POST',
-        body: formData,
-      });
-      const data = await res.json();
-      console.log({data});
-      if (!res.ok) {
-        throw new Error(data.message);
-      }
-      console.log({data});
-    } catch (error) {
-      console.log((error as Error).message);
-    }
-  };
-  const handleUploadAxios = async (formData: FormData) => {
-    try {
-      const res = await axios.post(`${baseApi}/api/upload-image`, formData, {
-        onUploadProgress: (progressEvent) => {
-          const {loaded, total} = progressEvent;
-          if (total) {
-            const percentage = Math.round((loaded * 100) / total);
-            setProgress(percentage);
-          }
-        },
-      });
-      console.log({res});
-    } catch (error) {
-      console.log({error});
-    }
-  };
-
-  const selectImage = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files && e.target.files[0];
-    if (!file) return;
-
-    const previewUrl = URL.createObjectURL(file);
-    setFiles((prev) => [...prev, {file, previewUrl}]);
-  };
+  const {
+    handleUploadAxios,
+    selectImage,
+    handleDrop,
+    handleDragEnter,
+    handleDragLeave,
+    files,
+    dropActive,
+    formData,
+    progress,
+  } = useFileUploadContext();
 
   return (
-    <div className='w-96 mx-auto border mt-20'>
+    <div
+      className={cn('w-96 mx-auto border mt-20', {
+        'bg-black/40': dropActive && files.length !== 0,
+      })}
+    >
       <input
         id='upload-input'
         className='hidden'
         type='file'
         accept='image/*'
         onChange={selectImage}
+        multiple
       />
       <header className='flex  justify-between items-center px-3'>
         <Button
@@ -104,18 +71,39 @@ const FileUpload = () => {
           </Button>
         </label>
       </header>
-      <Previews files={files} setFiles={setFiles} />
+      {progress > 0 && progress !== 100 && (
+        <div className='px-6 mt-2'>
+          <div className=' w-full  bg-gray-200 rounded h-1'>
+            <div
+              className='bg-blue-500 h-1 rounded transition-all duration-300 ease-out transform-gpu'
+              style={{width: `${progress}%`}}
+            ></div>
+          </div>
+        </div>
+      )}
+      <Previews />
       {files.length === 0 && (
         <div className='p-6'>
-          <div className='border-dashed border p-10 border-black rounded-xl w-full'>
-            {progress > 0 && (
-              <div className='mt-4 w-full bg-gray-200 rounded h-2'>
-                <div
-                  className='bg-blue-500 h-4 rounded transition-all duration-300 ease-out'
-                  style={{width: `${progress}%`}}
-                ></div>
-              </div>
+          <div
+            onDrop={handleDrop}
+            onDragOver={(event) => {
+              event.preventDefault();
+            }}
+            onDragEnter={() => {
+              if (files.length > 0) return;
+              handleDragEnter();
+            }}
+            onDragLeave={() => {
+              if (files.length > 0) return;
+              handleDragLeave();
+            }}
+            className={cn(
+              'border-dashed border p-10 z-20 border-black rounded-xl w-full',
+              {
+                'bg-slate-100': dropActive,
+              }
             )}
+          >
             <section className='flex flex-col items-center gap-2'>
               <ImagePlus />
               <div className='text-xl font-medium text-slate-900'>
